@@ -1,0 +1,228 @@
+import argparse
+import re
+import sys
+import platform
+from pathlib import Path
+
+# Import the core modules we have developed so far
+from .core.importer import run_import
+from .core.indexer import index_notebook
+from .core.resolver import list_project_tags, find_nodes_by_tag, display_global_state, display_navigation_tree
+from .core.extractor import run_extractor
+
+# ==========================================
+# VAULT CONFIGURATION
+# ==========================================
+
+def get_vault_path():
+    """Returns the absolute path to the Re.mind vault, querying the OS directly."""
+    docs_path = Path.home() / "Documents"  # Default fallback
+    
+    try:
+        system = platform.system()
+        if system == "Windows":
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders")
+            path_str, _ = winreg.QueryValueEx(key, "Personal")
+            docs_path = Path(path_str)
+        elif system == "Linux":
+            config_file = Path.home() / ".config" / "user-dirs.dirs"
+            if config_file.exists():
+                with open(config_file, 'r') as f:
+                    for line in f:
+                        if line.startswith("XDG_DOCUMENTS_DIR"):
+                            path_str = line.split('=')[1].strip().strip('"')
+                            docs_path = Path(path_str.replace('$HOME', str(Path.home())))
+                            break
+        # macOS (Darwin) physical path is always ~/Documents regardless of system language, 
+        # so the default fallback works perfectly.
+    except Exception:
+        pass # If OS query fails, stick to fallback
+        
+    vault_path = docs_path / "Re.mind vault"
+    
+    # Ensure the vault base directory always exists
+    vault_path.mkdir(parents=True, exist_ok=True)
+    return vault_path
+
+def expand_braces(argument):
+    """
+    Unpacks brace syntax (e.g. test.{a,b}) for cross-platform support.
+    """
+    match = re.search(r"(.*?)\.\{(.*?)\}", argument)
+    if match:
+        prefix = match.group(1)
+        content = match.group(2)
+        elements = content.split(',')
+        return [f"{prefix}.{element.strip()}" for element in elements]
+    return [argument]
+
+# ==========================================
+# COMMAND HANDLERS
+# ==========================================
+
+def handle_install(args):
+    vault_path = get_vault_path()
+    print(f"[*] Ensuring vault directory exists at: {vault_path}")
+    vault_path.mkdir(parents=True, exist_ok=True)
+    
+    agent_dir = Path.home() / ".agents" / "skills" / "remind"
+    print(f"[*] Deploying SKILL.md to: {agent_dir}")
+    agent_dir.mkdir(parents=True, exist_ok=True)
+    
+    skill_file = agent_dir / "SKILL.md"
+    
+    import importlib.resources
+    try:
+        skill_data = importlib.resources.files("remind").joinpath("SKILL.md").read_bytes()
+        skill_file.write_bytes(skill_data)
+        print(f"[+] Successfully copied SKILL.md to {skill_file}")
+    except Exception as e:
+        print(f"[-] Error reading SKILL.md from PyPI package: {e}")
+        sys.exit(1)
+        
+    print("[+] Install complete.")
+
+def handle_init(args):
+    vault_path = get_vault_path()
+    project_dir_name = args.name.replace(" ", "_")
+    project_path = vault_path / project_dir_name
+    
+    if project_path.exists():
+        print(f"[-] Error: Project '{project_dir_name}' already exists in the vault.")
+        sys.exit(1)
+        
+    print(f"[*] Initializing new Re.mind project: '{args.name}'")
+    print(f"[*] Creating directory at: {project_path}")
+    project_path.mkdir(parents=True, exist_ok=True)
+    
+    # Generate the base map.index using our indexer
+    index_notebook(project_path)
+    print(f"\n[+] Project '{args.name}' initialized successfully.")
+
+def handle_import(args):
+    vault_path = get_vault_path()
+    # Calls the importer module to process CSV/JSON into _Inbox folders
+    run_import(vault_base_path=vault_path)
+
+def handle_index(args):
+    vault_path = get_vault_path()
+    target_project = args.project
+    
+    if target_project:
+        project_path = vault_path / target_project
+        if not project_path.exists():
+            print(f"[-] Error: Project '{target_project}' not found in {vault_path}")
+            sys.exit(1)
+        print(f"[*] Indexing specific project: {target_project}...")
+        index_notebook(project_path)
+    else:
+        print("[*] Indexing all projects in the vault...")
+        # Scan the vault for all valid project folders
+        for item in vault_path.iterdir():
+            if item.is_dir() and not item.name.startswith('.') and item.name != 'import':
+                print(f"\n[*] Processing notebook: {item.name}")
+                index_notebook(item)
+                
+    print("\n[+] Indexing process complete.")
+
+def handle_map(args):
+    vault_path = get_vault_path()
+    if args.path:
+        display_navigation_tree(vault_path, args.path)
+    else:
+        display_global_state(vault_path)
+
+def handle_tag(args):
+    vault_path = get_vault_path()
+    project = args.project_hash
+    tag = args.tag
+    
+    # If the user asks for a list, display all tags
+    if tag.lower() == "list":
+        list_project_tags(vault_path, project)
+    else:
+        # Otherwise, search for the specific tag
+        print(f"[*] Searching for tag '#{tag}' in project '{project}'...")
+        paths = find_nodes_by_tag(vault_path, project, tag)
+        
+        # Output a helpful hint to extract all found documents at once
+        if paths:
+            paths_str = " ".join(paths)
+            print(f"\n[*] Tip: Extract them all instantly by running:")
+            print(f"    remind me {paths_str}")
+
+def handle_me(args):
+    vault_path = get_vault_path()
+    raw_paths = args.paths
+    expanded_paths = []
+    
+    for path in raw_paths:
+        expanded_paths.extend(expand_braces(path))
+        
+    print(f"[*] Extracting content from {len(expanded_paths)} nodes...")
+    for path in expanded_paths:
+        print(f"  -> Resolving and extracting: {path}")
+    
+    run_extractor(vault_path, expanded_paths)
+
+# ==========================================
+# ARGUMENT PARSER CONFIGURATION
+# ==========================================
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="remind",
+        description="Re.mind - CLI for semantic knowledge management and extraction.",
+        epilog="Run 'remind <command> --help' for more information on a specific command."
+    )
+    
+    subparsers = parser.add_subparsers(title="Available commands", dest="command")
+    subparsers.required = True
+
+    # 0. INSTALL
+    parser_install = subparsers.add_parser("install", help="Creates the vault directory and deploys SKILL.md to the global agent directory.")
+    parser_install.set_defaults(func=handle_install)
+
+    # 1. INIT
+    parser_init = subparsers.add_parser("init", help="Initializes a new Re.mind notebook in the Vault.")
+    parser_init.add_argument("name", type=str, help="Project name (e.g. 'My Project').")
+    parser_init.set_defaults(func=handle_init)
+
+    # 2. IMPORT
+    parser_import = subparsers.add_parser("import", help="Imports raw exports and generates Markdown notebooks.")
+    parser_import.set_defaults(func=handle_import)
+
+    # 3. INDEX
+    parser_index = subparsers.add_parser("index", help="Compiles Markdown files, updates sidecars and map.index.")
+    parser_index.add_argument("project", nargs="?", type=str, help="Specific project to index (optional).")
+    parser_index.set_defaults(func=handle_index)
+
+    # 4. MAP
+    parser_map = subparsers.add_parser("map", help="Queries the index structure without extracting content.")
+    parser_map.add_argument("path", nargs="?", type=str, help="Partial logical path to explore (optional).")
+    parser_map.set_defaults(func=handle_map)
+
+    # 5. TAG
+    parser_tag = subparsers.add_parser("tag", help="Performs a transversal search for a specific tag.")
+    parser_tag.add_argument("project_hash", type=str, help="Unique hash of the project.")
+    parser_tag.add_argument("tag", type=str, help="Tag name to search for (without #).")
+    parser_tag.set_defaults(func=handle_tag)
+
+    # 6. ME
+    parser_me = subparsers.add_parser("me", help="Extracts the exact content of one or more nodes.")
+    parser_me.add_argument("paths", nargs="+", type=str, help="Logical paths to extract. Supports {a,b} syntax.")
+    parser_me.set_defaults(func=handle_me)
+
+    args = parser.parse_args()
+    
+    try:
+        args.func(args)
+    except Exception as e:
+        import traceback
+        print(f"\n[CRITICAL FAILURE] Execution error: {str(e)}", file=sys.stderr)
+        traceback.print_exc()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
