@@ -9,6 +9,7 @@ from .core.importer import run_import
 from .core.indexer import index_notebook
 from .core.resolver import list_project_tags, find_nodes_by_tag, display_global_state, display_navigation_tree
 from .core.extractor import run_extractor
+from .core.writer import execute_write
 
 # ==========================================
 # VAULT CONFIGURATION
@@ -166,6 +167,14 @@ def handle_me(args):
     
     run_extractor(vault_path, expanded_paths)
 
+def handle_write(args):
+    vault_path = get_vault_path()
+    execute_write(vault_path, args.path, args.content, mode='w')
+
+def handle_append(args):
+    vault_path = get_vault_path()
+    execute_write(vault_path, args.path, args.content, mode='a')
+
 # ==========================================
 # ARGUMENT PARSER CONFIGURATION
 # ==========================================
@@ -213,6 +222,18 @@ def main():
     parser_me = subparsers.add_parser("me", help="Extracts the exact content of one or more nodes.")
     parser_me.add_argument("paths", nargs="+", type=str, help="Logical paths to extract. Supports {a,b} syntax.")
     parser_me.set_defaults(func=handle_me)
+
+    # 7. WRITE
+    parser_write = subparsers.add_parser("write", help="Writes content to a specific file in the vault.")
+    parser_write.add_argument("path", type=str, help="Logical path in the vault.")
+    parser_write.add_argument("--content", type=str, required=True, help="Content to write.")
+    parser_write.set_defaults(func=handle_write)
+
+    # 8. APPEND
+    parser_append = subparsers.add_parser("append", help="Appends content to a specific file in the vault.")
+    parser_append.add_argument("path", type=str, help="Logical path in the vault.")
+    parser_append.add_argument("--content", type=str, required=True, help="Content to append.")
+    parser_append.set_defaults(func=handle_append)
 
     args = parser.parse_args()
     

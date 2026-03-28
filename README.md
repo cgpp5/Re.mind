@@ -61,6 +61,18 @@ The core loop of Re.mind is encapsulated in writing (ingestion and indexing) and
   $ remind index tradinbot4a2
   ```
 
+* **`remind write <logical_path> --content "<text>"`**
+  Creates a new node or overwrites an existing one. If the logical path includes new directories or files, they will be created automatically. Automatically re-indexes the project after writing.
+  ```bash
+  $ remind write tradinbot4a2.new_folder.new_file --content "New documentation content"
+  ```
+
+* **`remind append <logical_path> --content "<text>"`**
+  Appends content to the end of an existing node. Useful for adding notes or observations without rewriting the entire file. Automatically re-indexes the project after appending.
+  ```bash
+  $ remind append tradinbot4a2.fe.spec --content "Additional observation"
+  ```
+
 ### 2. Query and Extraction (Read)
 
 * **`remind map [logical_path]`**
