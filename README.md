@@ -2,7 +2,7 @@
 
 **Re.mind is a context management CLI that lets users funnel conversational and technical data into a local Markdown vault, empowering LLMs to ground their responses by extracting exactly the information they need.**
 
-[![Python versions](https://img.shields.io/pypi/pyversions/re.md.svg)](https://pypi.org/project/re.md/)
+[![PyPI version](https://img.shields.io/pypi/v/re.md.svg)](https://pypi.org/project/re.md/)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 It transforms raw conversational data from ChatGPT, Claude, Gemini or Copilot into structured documents that can then be edited with tools like ObsidianMD. It creates a semantic index that AI agents can use to query documentation with millimeter precision without the need to copy and paste files to multiple locations.
