@@ -3,7 +3,7 @@
 **Re.mind is a context management CLI that lets users funnel conversational and technical data into a local Markdown vault, empowering LLMs to ground their responses by extracting exactly the information they need.**
 
 [![PyPI version](https://img.shields.io/pypi/v/remind-cli.svg)](https://pypi.org/project/remind-cli/)
-[![Python versions](https://img.shields.io/pypi/pyversions/re.mind.svg)](https://pypi.org/project/re.mind/)
+[![Python versions](https://img.shields.io/pypi/pyversions/re.md.svg)](https://pypi.org/project/re.md/)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 It transforms raw conversational data from ChatGPT, Claude, Gemini or Copilot into structured documents that can then be edited with tools like ObsidianMD. It creates a semantic index that AI agents can use to query documentation with millimeter precision without the need to copy and paste files to multiple locations.
@@ -25,7 +25,7 @@ It transforms raw conversational data from ChatGPT, Claude, Gemini or Copilot in
 Re.mind is written in Python and distributed via PyPI. It requires Python 3.9 or higher.
 
 ```bash
-pip install re.mind
+pip install re.md
 ```
 
 ---
@@ -36,6 +36,12 @@ The core loop of Re.mind is encapsulated in writing (ingestion and indexing) and
 
 ### 1. Data Management (Write)
 
+* **`remind install`**
+  Sets up the Re.mind vault base directory and deploys the `.agents/skills/remind/SKILL.md` file.
+  ```bash
+  $ remind install
+  ```
+  
 * **`remind init <name>`**
   Initializes a new project notebook in your Vault. Creates the technical structure (`.remind/`) and generates the unique project hash.
   ```bash
