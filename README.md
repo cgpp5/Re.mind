@@ -2,7 +2,6 @@
 
 **Re.mind is a context management CLI that lets users funnel conversational and technical data into a local Markdown vault, empowering LLMs to ground their responses by extracting exactly the information they need.**
 
-[![PyPI version](https://img.shields.io/pypi/v/remind-cli.svg)](https://pypi.org/project/remind-cli/)
 [![Python versions](https://img.shields.io/pypi/pyversions/re.md.svg)](https://pypi.org/project/re.md/)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
