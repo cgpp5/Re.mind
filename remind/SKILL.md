@@ -13,9 +13,16 @@ description: This skill allows you to access and interact with the Re.mind Vault
    * `remind index [project_hash]`: Scans the folder structure, compiles `.md` files, extracts inline tags (e.g., `#testing`), updates exact line numbers in JSON sidecars, and rebuilds `map.index`. 
    * *Rule:* Must be executed whenever Markdown files are manually edited or reorganized.
 
-3. **Writing & Modifying**
-   * `remind write <logical_path> --content "<text>"`: Creates a new node or overwrites an existing one. Automatically creates any missing directories/files and re-indexes the project.
-   * `remind append <logical_path> --content "<text>"`: Appends content to the end of an existing node. Avoids rewriting the entire file, saving tokens. Automatically re-indexes the project.
+3. **Writing & Modifying (AI-Optimized)**
+   * `remind write <logical_path> --file <path>`: Creates a new node or overwrites an existing one using content from a temporary file. 
+   * `remind append <logical_path> --file <path>`: Appends content from a temporary file to the end of an existing node.
+   * *Critical Rule:* Always write your intended Markdown content to a temporary file first, then execute these commands using the `--file` flag. This prevents shell escaping issues with newlines and special characters.
+
+   **Example Workflow (PowerShell):**
+   1. `$tmp = New-TemporaryFile`
+   2. `Set-Content -Path $tmp.FullName -Value "Your multi-line content" -Encoding UTF8`
+   3. `remind write project.folder.file --file $tmp.FullName`
+   4. `Remove-Item $tmp.FullName`
 
 4. **Querying & Navigation (Read-Only)**
    * `remind map [logical_path]`: Universal command to query the knowledge structure. Used without arguments, it returns the global Vault state.

@@ -2,23 +2,36 @@ import argparse
 import re
 import sys
 import platform
+import json
 from pathlib import Path
 
-# Import the core modules we have developed so far
+# Import core modules
 from .core.importer import run_import
 from .core.indexer import index_notebook
 from .core.resolver import list_project_tags, find_nodes_by_tag, display_global_state, display_navigation_tree
 from .core.extractor import run_extractor
 from .core.writer import execute_write
 
+CONFIG_FILE = Path.home() / ".remindrc"
+
 # ==========================================
 # VAULT CONFIGURATION
 # ==========================================
 
 def get_vault_path():
-    """Returns the absolute path to the Re.mind vault, querying the OS directly."""
-    docs_path = Path.home() / "Documents"  # Default fallback
-    
+    """Returns the absolute path to the Re.mind vault, checking config first, then OS directly."""
+    # 1. Check custom config first
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                if "vault_path" in config:
+                    return Path(config["vault_path"])
+        except Exception as e:
+            print(f"[-] Error reading config file: {e}")
+
+    # 2. Default fallback
+    docs_path = Path.home() / "Documents"
     try:
         system = platform.system()
         if system == "Windows":
@@ -33,18 +46,13 @@ def get_vault_path():
                     for line in f:
                         if line.startswith("XDG_DOCUMENTS_DIR"):
                             path_str = line.split('=')[1].strip().strip('"')
-                            docs_path = Path(path_str.replace('$HOME', str(Path.home())))
+                            path_str = path_str.replace("$HOME", str(Path.home()))
+                            docs_path = Path(path_str)
                             break
-        # macOS (Darwin) physical path is always ~/Documents regardless of system language, 
-        # so the default fallback works perfectly.
     except Exception:
-        pass # If OS query fails, stick to fallback
-        
-    vault_path = docs_path / "Re.mind vault"
-    
-    # Ensure the vault base directory always exists
-    vault_path.mkdir(parents=True, exist_ok=True)
-    return vault_path
+        pass
+
+    return docs_path / "Re.mind vault"
 
 def expand_braces(argument):
     """
@@ -100,7 +108,35 @@ def handle_init(args):
     # Generate the base map.index using our indexer
     index_notebook(project_path)
     print(f"\n[+] Project '{args.name}' initialized successfully.")
+    
+def handle_config(args):
+    """Saves a custom vault path to the configuration file."""
+    config = {}
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+        except json.JSONDecodeError:
+            pass # Si el archivo está corrupto, lo sobreescribimos
 
+    # Usamos resolve() para asegurar que guardamos la ruta absoluta
+    # incluso si el usuario introduce una ruta relativa como "./mi_vault"
+    custom_path = Path(args.path).resolve()
+    config["vault_path"] = str(custom_path)
+
+    try:
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=4)
+        print(f"[+] Vault location updated to: {custom_path}")
+        
+        # Opcional: Crear la carpeta si no existe
+        if not custom_path.exists():
+            custom_path.mkdir(parents=True, exist_ok=True)
+            print(f"[+] Created new vault directory.")
+    except Exception as e:
+        print(f"[-] Error saving config: {e}")
+        sys.exit(1)
+        
 def handle_import(args):
     vault_path = get_vault_path()
     # Calls the importer module to process CSV/JSON into _Inbox folders
@@ -169,11 +205,25 @@ def handle_me(args):
 
 def handle_write(args):
     vault_path = get_vault_path()
-    execute_write(vault_path, args.path, args.content, mode='w')
+    try:
+        with open(args.file, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except Exception as e:
+        print(f"[-] Error reading temporary file: {e}")
+        sys.exit(1)
+        
+    execute_write(vault_path, args.path, content, mode='w')
 
 def handle_append(args):
     vault_path = get_vault_path()
-    execute_write(vault_path, args.path, args.content, mode='a')
+    try:
+        with open(args.file, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except Exception as e:
+        print(f"[-] Error reading temporary file: {e}")
+        sys.exit(1)
+        
+    execute_write(vault_path, args.path, content, mode='a')
 
 # ==========================================
 # ARGUMENT PARSER CONFIGURATION
@@ -224,16 +274,21 @@ def main():
     parser_me.set_defaults(func=handle_me)
 
     # 7. WRITE
-    parser_write = subparsers.add_parser("write", help="Writes content to a specific file in the vault.")
+    parser_write = subparsers.add_parser("write", help="Writes content to a specific file in the vault from a temporary file.")
     parser_write.add_argument("path", type=str, help="Logical path in the vault.")
-    parser_write.add_argument("--content", type=str, required=True, help="Content to write.")
+    parser_write.add_argument("--file", type=str, required=True, help="Path to the temporary file containing the content to write.")
     parser_write.set_defaults(func=handle_write)
 
     # 8. APPEND
-    parser_append = subparsers.add_parser("append", help="Appends content to a specific file in the vault.")
+    parser_append = subparsers.add_parser("append", help="Appends content to a specific file in the vault from a temporary file.")
     parser_append.add_argument("path", type=str, help="Logical path in the vault.")
-    parser_append.add_argument("--content", type=str, required=True, help="Content to append.")
+    parser_append.add_argument("--file", type=str, required=True, help="Path to the temporary file containing the content to append.")
     parser_append.set_defaults(func=handle_append)
+
+    # 9. CONFIG
+    parser_config = subparsers.add_parser("config", help="Configures global CLI settings.")
+    parser_config.add_argument("--set-vault", dest="path", type=str, required=True, help="Sets a custom absolute or relative path for the vault.")
+    parser_config.set_defaults(func=handle_config)
 
     args = parser.parse_args()
     
