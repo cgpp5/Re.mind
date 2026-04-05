@@ -84,6 +84,8 @@ def handle_install(args):
     import importlib.resources
     try:
         skill_data = importlib.resources.files("remind").joinpath("SKILL.md").read_bytes()
+        if skill_file.exists():
+            skill_file.unlink()
         skill_file.write_bytes(skill_data)
         print(f"[+] Successfully copied SKILL.md to {skill_file}")
     except Exception as e:

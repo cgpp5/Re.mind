@@ -33,13 +33,21 @@ pip install re.md
 
 The core loop of Re.mind is encapsulated in writing (ingestion and indexing) and reading (querying and extraction).
 
-### 1. Data Management (Write)
+### 1. Installation
 
 * **`remind install`**
   Sets up the Re.mind vault base directory and deploys the `.agents/skills/remind/SKILL.md` file.
   ```bash
   $ remind install
   ```
+* **`remind config --set-vault <path>`**
+  Configures a custom location for your Re.mind vault globally. The CLI will remember this path across all your terminal sessions. It accepts both absolute and relative paths.
+  ```bash
+  $ remind config --set-vault "~/My_Custom_Vault"
+  $ remind config --set-vault "./local_vault"
+  ```
+  
+### 2. Data Management (Write)
   
 * **`remind init <name>`**
   Initializes a new project notebook in your Vault. Creates the technical structure (`.remind/`) and generates the unique project hash.
@@ -60,19 +68,13 @@ The core loop of Re.mind is encapsulated in writing (ingestion and indexing) and
   $ remind index tradinbot4a2
   ```
 
-* **`remind write <logical_path> --content "<text>"`**
-  Creates a new node or overwrites an existing one. If the logical path includes new directories or files, they will be created automatically. Automatically re-indexes the project after writing.
-  ```bash
-  $ remind write tradinbot4a2.new_folder.new_file --content "New documentation content"
-  ```
+* **`remind write [logical_path[ --file <temp_file>`**
+  Creates a new node or overwrites an existing one. It requires a path to a temporary file containing the content to ensure 100% reliability with multi-line strings and special characters.
 
-* **`remind append <logical_path> --content "<text>"`**
-  Appends content to the end of an existing node. Useful for adding notes or observations without rewriting the entire file. Automatically re-indexes the project after appending.
-  ```bash
-  $ remind append tradinbot4a2.fe.spec --content "Additional observation"
-  ```
+* **`remind append [logical_path[ --file <temp_file>`**
+  Appends content from a temporary file to the end of an existing node. This is the most efficient way to update large documents without rewriting the entire file.
 
-### 2. Query and Extraction (Read)
+### 3. Query and Extraction (Read)
 
 * **`remind map [logical_path]`**
   Displays a visual tree with the structure of the indexed knowledge. With no arguments, it shows the global state of the Vault.
