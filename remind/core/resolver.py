@@ -1,10 +1,10 @@
 import json
 from pathlib import Path
 
-def load_project_map(vault_path, project_hash):
+def load_project_map(vault_path, project_slug):
     """
     Scans the vault and returns the physical directory and map.index data
-    for a specific project hash.
+    for a specific project slug.
     """
     for item in vault_path.iterdir():
         if item.is_dir() and not item.name.startswith('.') and item.name != 'import':
@@ -13,30 +13,30 @@ def load_project_map(vault_path, project_hash):
                 try:
                     with open(map_file, 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                        if project_hash in data:
-                            return item, data[project_hash]
+                        if project_slug in data:
+                            return item, data[project_slug]
                 except json.JSONDecodeError:
                     continue
     return None, None
 
-def list_project_tags(vault_path, project_hash):
+def list_project_tags(vault_path, project_slug):
     """
     Reads the global _tags index and prints all available tags 
     sorted by the number of documents that contain them.
     """
-    _, map_data = load_project_map(vault_path, project_hash)
+    _, map_data = load_project_map(vault_path, project_slug)
     
     if not map_data:
-        print(f"[-] Error: Project with hash '{project_hash}' not found in vault.")
+        print(f"[-] Error: Project with slug '{project_slug}' not found in vault.")
         return
     
     tags = map_data.get("_tags", {})
     if not tags:
-        print(f"[*] No tags found in project '{project_hash}'.")
+        print(f"[*] No tags found in project '{project_slug}'.")
         print("[*] Hint: Write #tags in your Markdown files and run 'remind index'.")
         return
         
-    print(f"\n🏷️  TAGS IN PROJECT '{project_hash}'")
+    print(f"\n🏷️  TAGS IN PROJECT '{project_slug}'")
     print("=" * 60)
     
     # Sort tags by frequency (descending) and then alphabetically
@@ -61,14 +61,14 @@ def list_project_tags(vault_path, project_hash):
         
     print("=" * 60)
 
-def find_nodes_by_tag(vault_path, project_hash, tag_name):
+def find_nodes_by_tag(vault_path, project_slug, tag_name):
     """
     Looks up a specific tag in the index and returns the list of logical paths.
     """
-    _, map_data = load_project_map(vault_path, project_hash)
+    _, map_data = load_project_map(vault_path, project_slug)
     
     if not map_data:
-        print(f"[-] Error: Project with hash '{project_hash}' not found in vault.")
+        print(f"[-] Error: Project with slug '{project_slug}' not found in vault.")
         return []
         
     tags = map_data.get("_tags", {})
@@ -91,7 +91,7 @@ def find_nodes_by_tag(vault_path, project_hash, tag_name):
 def display_global_state(vault_path):
     """
     Displays the global state of all projects in the vault.
-    Shows the project hash, node count, and number of available tags.
+    Shows the project slug, node count, and number of available tags.
     """
     print("\n🌍 GLOBAL VAULT STATE")
     print("=" * 60)
@@ -103,7 +103,7 @@ def display_global_state(vault_path):
                 try:
                     with open(map_file, 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                        for proj_hash, proj_data in data.items():
+                        for proj_slug, proj_data in data.items():
                             meta = proj_data.get("_meta", {})
                             proj_name = meta.get("project_name", item.name)
                             tags = proj_data.get("_tags", {})
@@ -120,7 +120,7 @@ def display_global_state(vault_path):
                             
                             num_nodes = count_nodes(proj_data)
                             
-                            print(f"📦 {proj_name} [{proj_hash}]")
+                            print(f"📦 {proj_name} [{proj_slug}]")
                             print(f"   Nodes: {num_nodes} | Tags: {num_tags}\n")
                             found = True
                 except json.JSONDecodeError:
@@ -134,16 +134,16 @@ def display_navigation_tree(vault_path, logical_path):
     Displays the visual tree for a specific logical path.
     """
     parts = logical_path.split('.')
-    project_hash = parts[0]
+    project_slug = parts[0]
     
-    _, map_data = load_project_map(vault_path, project_hash)
+    _, map_data = load_project_map(vault_path, project_slug)
     if not map_data:
-        print(f"[-] Error: Project with hash '{project_hash}' not found in vault.")
+        print(f"[-] Error: Project with slug '{project_slug}' not found in vault.")
         return
         
     # Traverse to the requested node
     current_node = map_data
-    node_name = map_data.get("_meta", {}).get("project_name", project_hash)
+    node_name = map_data.get("_meta", {}).get("project_name", project_slug)
     
     for i, part in enumerate(parts[1:]):
         if part in current_node:

@@ -20,19 +20,29 @@ def generate_slug(text, level, context=""):
     """
     Generates a deterministic slug based on the hierarchical level.
     Root (12), Directory (2), File (4), Node/Heading (7)
+    If the normalized name is shorter than the target length, it is used as-is.
     """
     cleaned_text = clean_text(text)
-    m_hash = hashlib.md5((context + text).encode('utf-8')).hexdigest()
 
     if level == 0:
+        if len(cleaned_text) < 12:
+            return cleaned_text
         base = cleaned_text[:9].ljust(9, 'a')
+        m_hash = hashlib.md5((context + text).encode('utf-8')).hexdigest()
         return f"{base}{m_hash[:3]}"
     elif level == 1:
+        if len(cleaned_text) < 2:
+            return cleaned_text
         return cleaned_text[:2].ljust(2, 'a')
     elif level == 2:
+        if len(cleaned_text) < 4:
+            return cleaned_text
         return cleaned_text[:4].ljust(4, 'a')
     else:
+        if len(cleaned_text) < 7:
+            return cleaned_text
         base = cleaned_text[:5].ljust(5, 'a')
+        m_hash = hashlib.md5((context + text).encode('utf-8')).hexdigest()
         return f"{base}{m_hash[:2]}"
 
 # ==========================================
@@ -260,6 +270,8 @@ def index_notebook(notebook_path):
     print(f"  [OK] Index updated for '{project_name}'.")
     print(f"  [OK] Documents indexed and sidecars generated: {generated_sidecars}")
     print(f"  [OK] Unique tags mapped globally: {len(global_tags_ref)}")
+
+    return project_slug
 
 if __name__ == "__main__":
     pass

@@ -1,30 +1,41 @@
 import sys
 from pathlib import Path
 from .resolver import load_project_map
-from .indexer import index_notebook
+from .indexer import index_notebook, generate_slug
 
-def resolve_write_path(vault_path, logical_path):
+def resolve_write_path(vault_path, logical_path, file_name=None):
     """
-    Translates a logical path to a physical path, inventing directories
-    and files if they don't exist in map.index.
+    Translates a logical path to a physical path.
+    If file_name is provided, logical_path is treated as a project/directory path.
+    Otherwise, logical_path is treated as the full logical file path.
     """
-    parts = logical_path.split('.')
-    if len(parts) < 2:
-        print(f"[-] Error: Invalid logical path '{logical_path}'. Needs at least 'project.file'")
+    parts = [part for part in logical_path.split('.') if part]
+    if not parts or (file_name is None and len(parts) < 2):
+        print(f"[-] Error: Invalid logical path '{logical_path}'.")
         sys.exit(1)
 
-    project_hash = parts[0]
-    project_dir, map_data = load_project_map(vault_path, project_hash)
+    if file_name is not None and not file_name.strip():
+        print("[-] Error: Missing target file name.")
+        sys.exit(1)
+
+    if file_name is not None:
+        file_name = file_name.strip()
+        if Path(file_name).name != file_name:
+            print(f"[-] Error: File name must be a single file name, got '{file_name}'.")
+            sys.exit(1)
+
+    project_slug = parts[0]
+    project_dir, map_data = load_project_map(vault_path, project_slug)
 
     if not project_dir:
-        print(f"[-] Error: Project with hash '{project_hash}' not found in vault.")
+        print(f"[-] Error: Project with slug '{project_slug}' not found in vault.")
         sys.exit(1)
 
     current_node = map_data
     current_physical_path = project_dir
 
     for i, part in enumerate(parts[1:]):
-        is_last = (i == len(parts[1:]) - 1)
+        is_last = i == len(parts[1:]) - 1
 
         if current_node is not None and part in current_node:
             node_data = current_node[part]
@@ -32,35 +43,39 @@ def resolve_write_path(vault_path, logical_path):
                 current_physical_path = current_physical_path / node_data["_dir"]
                 current_node = node_data
             elif "_file" in node_data:
+                if file_name is not None:
+                    print(f"[-] Error: '{part}' is a file. Provide only a project/directory path and pass the actual file name separately.")
+                    sys.exit(1)
                 current_physical_path = current_physical_path / node_data["_file"]
                 if not is_last:
                     print(f"[-] Error: '{part}' is a file, cannot contain children.")
                     sys.exit(1)
                 current_node = None
             elif "_title" in node_data:
-                print(f"[-] Error: Cannot write directly to a heading block '{part}'. Provide a path to a file.")
+                target_hint = "project/directory path" if file_name is not None else "path to a file"
+                print(f"[-] Error: Cannot write directly to a heading block '{part}'. Provide a {target_hint}.")
                 sys.exit(1)
             else:
                 # E.g. _meta, _tags
                 print(f"[-] Error: Invalid path part '{part}'.")
                 sys.exit(1)
         else:
-            # We are inventing a new path or traversing newly invented ones
-            if is_last:
+            if file_name is None and is_last:
                 current_physical_path = current_physical_path / f"{part}.md"
             else:
                 current_physical_path = current_physical_path / part
-            
-            # Since this node didn't exist, all subsequent nodes won't exist in map_data either
             current_node = None
+
+    if file_name is not None:
+        current_physical_path = current_physical_path / f"{file_name}.md"
 
     return project_dir, current_physical_path
 
-def execute_write(vault_path, logical_path, content, mode="w"):
+def execute_write(vault_path, logical_path, content, mode="w", file_name=None):
     """
     Creates or overwrites/appends a file, then re-indexes the project.
     """
-    project_dir, target_file = resolve_write_path(vault_path, logical_path)
+    project_dir, target_file = resolve_write_path(vault_path, logical_path, file_name)
 
     # Ensure parent directories exist
     target_file.parent.mkdir(parents=True, exist_ok=True)
@@ -81,6 +96,10 @@ def execute_write(vault_path, logical_path, content, mode="w"):
                 f.write(content)
                 
         print(f"[+] Successfully wrote to {target_file.relative_to(project_dir)}")
+        if file_name is not None:
+            parts = [p for p in logical_path.split('.') if p]
+            file_slug = generate_slug(file_name, level=2, context="".join(parts))
+            print(f"[+] Document slug (logical key): {logical_path}.{file_slug}")
     except Exception as e:
         print(f"[-] Error writing to {target_file}: {e}")
         sys.exit(1)

@@ -50,7 +50,7 @@ The core loop of Re.mind is encapsulated in writing (ingestion and indexing) and
 ### 2. Data Management (Write)
   
 * **`remind init <name>`**
-  Initializes a new project notebook in your Vault. Creates the technical structure (`.remind/`) and generates the unique project hash.
+  Initializes a new project notebook in your Vault. Creates the technical structure (`.remind/`) and generates the unique project slug.
   ```bash
   $ remind init "Trading Bot"
   ```
@@ -61,18 +61,15 @@ The core loop of Re.mind is encapsulated in writing (ingestion and indexing) and
   $ remind import
   ```
 
-* **`remind index [project_hash]`**
-  The core engine. Scans the folder structure, detects blocks, extracts inline hashtags (e.g., `#architecture`), and rebuilds the semantic map (`map.index`) and the auxiliary coordinate files (`sidecars`). 
+* **`remind index`**
+  The core engine. Scans every project in the Vault, detects blocks, extracts inline hashtags (e.g., `#architecture`), and rebuilds the semantic map (`map.index`) and the auxiliary coordinate files (`sidecars`).
   *Note: Always run this after manually reorganizing or editing your Markdown files in Obsidian.*
-  ```bash
-  $ remind index tradinbot4a2
-  ```
 
-* **`remind write [logical_path[ --file <temp_file>`**
-  Creates a new node or overwrites an existing one. It requires a path to a temporary file containing the content to ensure 100% reliability with multi-line strings and special characters.
+* **`remind write <logical_path> <document_name> <temp_file>`**
+  Creates a new node or overwrites an existing one. `logical_path` targets the project or a directory within it. `document_name` is the actual document name **without** the `.md` extension — wrap in quotes if it contains spaces (e.g. `'Meeting Notes'`). `temp_file` is the path to the file holding the content.
 
-* **`remind append [logical_path[ --file <temp_file>`**
-  Appends content from a temporary file to the end of an existing node. This is the most efficient way to update large documents without rewriting the entire file.
+* **`remind append <logical_path> <temp_file>`**
+  Appends content from a temporary file to the end of an existing node.
 
 ### 3. Query and Extraction (Read)
 
@@ -82,7 +79,7 @@ The core loop of Re.mind is encapsulated in writing (ingestion and indexing) and
   $ remind map tradinbot4a2.fe
   ```
 
-* **`remind tag <hash> list`** | **`remind tag <hash> <tag>`**
+* **`remind tag <slug> list`** | **`remind tag <slug> <tag>`**
   Transversal search system. Lists all tags in a project sorted by popularity, or searches for a specific tag, returning the exact paths of the documents that contain it.
   ```bash
   $ remind tag tradinbot4a2 list
@@ -99,7 +96,7 @@ The core loop of Re.mind is encapsulated in writing (ingestion and indexing) and
 
 ## 🏗️ Internal Architecture
 
-Re.mind abstracts complexity through a system of short names (Slugs) and a coordinate map (Sidecars).
+Re.mind abstracts complexity through a system of short deterministic identifiers (Slugs) and a coordinate map (Sidecars).
 
 Every Markdown file has a hidden twin JSON file in the `.remind/sidecars/` folder. This file acts as a spatial coordinate system: it maps the exact start and end lines of every heading and the tags the document contains, allowing the `remind me` command to extract surgical snippets without having to parse heavy text files in real-time.
 

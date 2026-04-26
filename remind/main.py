@@ -66,6 +66,14 @@ def expand_braces(argument):
         return [f"{prefix}.{element.strip()}" for element in elements]
     return [argument]
 
+def read_temp_file(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception as e:
+        print(f"[-] Error reading temporary file: {e}")
+        sys.exit(1)
+
 # ==========================================
 # COMMAND HANDLERS
 # ==========================================
@@ -108,8 +116,9 @@ def handle_init(args):
     project_path.mkdir(parents=True, exist_ok=True)
     
     # Generate the base map.index using our indexer
-    index_notebook(project_path)
+    project_slug = index_notebook(project_path)
     print(f"\n[+] Project '{args.name}' initialized successfully.")
+    print(f"[+] Project slug: {project_slug}")
     
 def handle_config(args):
     """Saves a custom vault path to the configuration file."""
@@ -146,22 +155,12 @@ def handle_import(args):
 
 def handle_index(args):
     vault_path = get_vault_path()
-    target_project = args.project
-    
-    if target_project:
-        project_path = vault_path / target_project
-        if not project_path.exists():
-            print(f"[-] Error: Project '{target_project}' not found in {vault_path}")
-            sys.exit(1)
-        print(f"[*] Indexing specific project: {target_project}...")
-        index_notebook(project_path)
-    else:
-        print("[*] Indexing all projects in the vault...")
-        # Scan the vault for all valid project folders
-        for item in vault_path.iterdir():
-            if item.is_dir() and not item.name.startswith('.') and item.name != 'import':
-                print(f"\n[*] Processing notebook: {item.name}")
-                index_notebook(item)
+    print("[*] Indexing all projects in the vault...")
+    # Scan the vault for all valid project folders
+    for item in vault_path.iterdir():
+        if item.is_dir() and not item.name.startswith('.') and item.name != 'import':
+            print(f"\n[*] Processing notebook: {item.name}")
+            index_notebook(item)
                 
     print("\n[+] Indexing process complete.")
 
@@ -174,7 +173,7 @@ def handle_map(args):
 
 def handle_tag(args):
     vault_path = get_vault_path()
-    project = args.project_hash
+    project = args.project_slug
     tag = args.tag
     
     # If the user asks for a list, display all tags
@@ -207,31 +206,19 @@ def handle_me(args):
 
 def handle_write(args):
     vault_path = get_vault_path()
-    try:
-        with open(args.file, 'r', encoding='utf-8') as f:
-            content = f.read()
-    except Exception as e:
-        print(f"[-] Error reading temporary file: {e}")
-        sys.exit(1)
-        
-    execute_write(vault_path, args.path, content, mode='w')
+    content = read_temp_file(args.temp_file)
+    execute_write(vault_path, args.path, content, mode='w', file_name=args.file_name)
 
 def handle_append(args):
     vault_path = get_vault_path()
-    try:
-        with open(args.file, 'r', encoding='utf-8') as f:
-            content = f.read()
-    except Exception as e:
-        print(f"[-] Error reading temporary file: {e}")
-        sys.exit(1)
-        
+    content = read_temp_file(args.file)
     execute_write(vault_path, args.path, content, mode='a')
 
 # ==========================================
 # ARGUMENT PARSER CONFIGURATION
 # ==========================================
 
-def main():
+def build_parser():
     parser = argparse.ArgumentParser(
         prog="remind",
         description="Re.mind - CLI for semantic knowledge management and extraction.",
@@ -255,8 +242,11 @@ def main():
     parser_import.set_defaults(func=handle_import)
 
     # 3. INDEX
-    parser_index = subparsers.add_parser("index", help="Compiles Markdown files, updates sidecars and map.index.")
-    parser_index.add_argument("project", nargs="?", type=str, help="Specific project to index (optional).")
+    parser_index = subparsers.add_parser(
+        "index",
+        help="Rebuilds sidecars and map.index for every project in the vault.",
+        description="Scans every project in the configured vault and rebuilds sidecars plus map.index. This command takes no positional arguments."
+    )
     parser_index.set_defaults(func=handle_index)
 
     # 4. MAP
@@ -266,7 +256,7 @@ def main():
 
     # 5. TAG
     parser_tag = subparsers.add_parser("tag", help="Performs a transversal search for a specific tag.")
-    parser_tag.add_argument("project_hash", type=str, help="Unique hash of the project.")
+    parser_tag.add_argument("project_slug", type=str, help="Unique slug of the project.")
     parser_tag.add_argument("tag", type=str, help="Tag name to search for (without #).")
     parser_tag.set_defaults(func=handle_tag)
 
@@ -276,13 +266,21 @@ def main():
     parser_me.set_defaults(func=handle_me)
 
     # 7. WRITE
-    parser_write = subparsers.add_parser("write", help="Writes content to a specific file in the vault from a temporary file.")
-    parser_write.add_argument("path", type=str, help="Logical path in the vault.")
-    parser_write.add_argument("--file", type=str, required=True, help="Path to the temporary file containing the content to write.")
+    parser_write = subparsers.add_parser(
+        "write",
+        help="Writes to an actual Markdown file under a logical project/directory path.",
+        description="Creates or overwrites a Markdown file using a logical project/directory path plus the actual file name (without the .md extension). Use the real name, not the generated slug. If the name contains spaces, wrap it in quotes."
+    )
+    parser_write.add_argument("path", type=str, help="Logical project or directory path in the vault (for example: project_slug.folder_slug).")
+    parser_write.add_argument("file_name", type=str, help="Document name without the .md extension. Supports spaces — wrap in quotes if needed (for example: 'Meeting Notes').")
+    parser_write.add_argument("temp_file", type=str, help="Path to the temporary file that contains the content to write.")
     parser_write.set_defaults(func=handle_write)
 
     # 8. APPEND
-    parser_append = subparsers.add_parser("append", help="Appends content to a specific file in the vault from a temporary file.")
+    parser_append = subparsers.add_parser(
+        "append",
+        help="Appends content to a specific file in the vault from a temporary file."
+    )
     parser_append.add_argument("path", type=str, help="Logical path in the vault.")
     parser_append.add_argument("--file", type=str, required=True, help="Path to the temporary file containing the content to append.")
     parser_append.set_defaults(func=handle_append)
@@ -291,6 +289,11 @@ def main():
     parser_config = subparsers.add_parser("config", help="Configures global CLI settings.")
     parser_config.add_argument("--set-vault", dest="path", type=str, required=True, help="Sets a custom absolute or relative path for the vault.")
     parser_config.set_defaults(func=handle_config)
+
+    return parser
+
+def main():
+    parser = build_parser()
 
     args = parser.parse_args()
     
